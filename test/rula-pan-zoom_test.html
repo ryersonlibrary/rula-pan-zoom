@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, minimum-scale=1, initial-scale=1, user-scalable=yes">
+
+    <title>rula-pan-zoom test</title>
+
+    <script src="../../webcomponentsjs/webcomponents-loader.js"></script>
+    <script src="../../web-component-tester/browser.js"></script>
+
+    <link rel="import" href="../rula-pan-zoom.html">
+  </head>
+  <body>
+
+    <test-fixture id="basic">
+      <template>
+        <style>
+          rula-pan-zoom {
+            display: block;
+            width: 560px;
+          }
+        </style>
+        <rula-pan-zoom min-scale="0.5" max-scale="5" width="750" height="500" style="width: 560px; height: 500px; overflow: hidden;">
+          <div style="pointer-events: none; background-color: goldenrod; width:740px; height: 490px; border: 5px solid red;"></div>
+        </rula-pan-zoom>
+      </template>
+    </test-fixture>
+
+    <script>
+      suite('rula-pan-zoom', () => {
+        const f= fixture('basic');
+
+        test('Scale initialization is okay', () => {
+          expect(f[1].scale).to.equal(1);
+        });
+
+        test('Limits initialization is okay', () => {
+          expect(f[1].limits).to.have.property('left', -190);
+          expect(f[1].limits).to.have.property('top', 0);
+          expect(f[1].limits).to.have.property('width', 190);
+          expect(f[1].limits).to.have.property('height', 0);
+        });
+      });
+    </script>
+
+  </body>
+</html>

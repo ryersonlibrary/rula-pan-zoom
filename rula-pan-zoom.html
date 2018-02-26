@@ -1,0 +1,334 @@
+<link rel="import" href="../polymer/polymer-element.html">
+
+<script src="../hammerjs/hammer.min.js"></script>
+
+<dom-module id="rula-pan-zoom">
+  <template>
+    <style>
+      :host {
+        display: block;
+        overflow: hidden;
+      }
+
+      #wrapper {
+        transform-origin: 0 0;
+      }
+    </style>
+    <div id="wrapper">
+      <slot></slot>
+    </div>
+  </template>
+
+  <script>
+    /**
+     * `rula-pan-zoom`
+     * Adds pan and zoom functionality to child content.  Supports touch and
+     * mouse to pan, pinch and zoom.  Limits can be places on min and max pan 
+     * and zoom.
+     *
+     * @customElement
+     * @polymer
+     * @demo demo/index.html
+     */
+    class RulaPanZoom extends Polymer.Element {
+      static get is() {
+        return 'rula-pan-zoom';
+      }
+      static get properties() {
+        return {
+          /** The current x-position of the element. */
+          curX: {
+            type: Number,
+            value: 0
+          },
+
+          /** The current y-position of the element. */
+          curY: {
+            type: Number,
+            value: 0
+          },
+
+          /** The current scale of the element. */
+          scale: {
+            type: Number,
+            value: 1,
+            notify: true
+          },
+
+          /** 
+           * An object containing bounds used to constrain the movement of this
+           * element.
+           *
+           * @type {{top: number, left: number, width: number, height: number}}
+           */
+          limits: {
+            type: Object,
+            value: {
+              left: 0,
+              top: 0,
+              width: 0,
+              height: 0
+            },
+            computed: '_computeLimits(height, width, scale)'
+          },
+
+          /**
+           * The maximum zoom factor.  Defaults to 3.
+           */
+          maxScale: {
+            type: Number,
+            value: 3
+          },
+
+          /** 
+           * The minimum zoom factor.  Defaults to 1 (the original size of the
+           * contents).
+           */
+          minScale: {
+            type: Number,
+            value: 1
+          },
+
+          /**
+           * The initial height of the content.
+           */
+          height: {
+            observer: '_initializePosition',
+            type: Number,
+            value: 0,
+          },
+
+          /**
+           * The initial width of the content.
+           */
+          width: {
+            observer: '_initializePosition',
+            type: Number,
+            value: 0,
+          },
+
+          /**
+           * An X-Y offset used to center the map relative to the center of the
+           * screen.
+           *
+           * @type {{x: number, y: number}}
+           */
+          offset: {
+            type: Object
+          }
+        }
+      };
+
+      /**
+       * Use for one-time configuration of your component after local DOM is initialized. 
+       */
+      ready() {
+        super.ready();
+
+        this.mc = new Hammer.Manager(this);
+        this.mc.add(new Hammer.Pan({
+          threshold: 0,
+          pointers: 1
+        }));
+        this.mc.add(new Hammer.Pinch({
+          threshold: 0
+        })).recognizeWith([this.mc.get('pan')]);
+
+        this.mc.on('panmove panstart panend', e => this._onPan(e));
+        this.mc.on('pinchstart pinchmove', e => this._onPinch(e));
+
+        this.addEventListener('wheel', e => this._onWheel(e));
+        window.addEventListener('resize', e => this._initializePosition());
+      };
+
+      _initializePosition() {
+        if (!(this.width && this.height)) {
+          return;
+        }
+
+        let width = this.width;
+        let height = this.height;
+
+        let containerHeight = 0;
+        let containerWidth = 0;
+        if (this.bounds) {
+          containerHeight = bounds.height;
+          containerWidth = bounds.width;
+        } else {
+          let rect = this.getBoundingClientRect();
+          if (!rect) {
+            throw Error("No container size found or computable, aborting!");
+          }
+          containerHeight = rect.height;
+          containerWidth = rect.width;
+        }
+        
+        this.$.wrapper.style.width = width + 'px';
+        this.$.wrapper.style.height = height + 'px';
+
+        if (containerHeight < containerWidth) {
+          this.scale = this.initS = Math.max(containerWidth / width, containerHeight / height);
+        } else {
+          this.scale = this.initS = Math.min(containerWidth / width, containerHeight / height);
+        }
+
+        this.offset = {
+          x: containerWidth / 2 - width * this.scale / 2,
+          y: containerHeight / 2 - height * this.scale / 2
+        }
+
+        this._requestUpdate();
+      };
+
+      _onPan(e) {
+        this.curX = this._limitX(this.curX + e.srcEvent.movementX);
+        this.curY = this._limitY(this.curY + e.srcEvent.movementY);
+        this._requestUpdate();
+      };
+
+      _onPinch(e) {
+        if (e.type === 'pinchstart') {
+          this.tempScale = this.scale;
+        }
+
+        this.scale = this.tempScale * e.scale;
+
+        this._requestUpdate();
+      };
+
+      /**
+       * Handle when the users moves the mouse wheel to zoom in or out.
+       *
+       * @param {Event}
+       */
+      _onWheel(e) {
+        let bounds = this.getBoundingClientRect();
+        let x = Math.round(e.clientX - bounds.x);
+        let y = Math.round(e.clientY - bounds.y);
+
+        let tempScale = this.scale;
+
+        if (e.deltaY < 0) {
+          if (tempScale * 1.05263157895 < this.initS * this.maxScale) {
+            this.scale *= 1.05263157895;
+          }
+        } else {
+          if (tempScale * 0.95 > this.initS * this.minScale) {
+            this.scale *= 0.95;
+          }
+        }
+
+        // Calculate dX and dY then scale those values.
+        this.curX += (x / this.scale - x / tempScale) * this.scale;
+        this.curY += (y / this.scale - y / tempScale) * this.scale;
+
+        this._requestUpdate();
+      };
+
+      /**
+       * Requests an animation frame to perform any repaint changes.
+       */
+      _requestUpdate() {
+        if (!this.isAnimating) {
+          this.isAnimating = true;
+          window.requestAnimationFrame(cb => this._update(cb));
+        }
+      };
+
+      /**
+       * Handle when an animationFrame is called and update the transform of
+       * this `rula-transform`.
+       */
+      _update() {
+        // Combine the scale, x and y values into a 2d transformation matrix.
+        let m = [this.scale, 0, 0, this.scale, this._limitX(this.curX),
+          this._limitY(this.curY)
+        ];
+        this.$.wrapper.style.transform = 'matrix(' + m.join(',') + ')';
+        this.isAnimating = false;
+      };
+
+      /**
+       * Round a given number to a specified precision.
+       *
+       * @param {number} number The number to round
+       * @param {number} precision The number of decimals to round to
+       * @returns The given number, rounded to a specified decimal place
+       */
+      _round(number, precision) {
+        let factor = Math.pow(10, precision);
+        let temp = number * factor;
+        let rounded = Math.round(temp);
+        return rounded / factor;
+      };
+
+      /**
+       * Constrain a value to within the horizontal components of `this.limits`.
+       *
+       * @param {number} x The value to constrain
+       * @return {number} The constrained value
+       */
+      _limitX(x) {
+        if (!this.limits) { return; }
+        let rect = this.limits;
+        let left = !isNaN(rect.left) ? rect.left : null;
+        let width = !isNaN(rect.width) ? rect.width : 0;
+        let maxX = left != null ? left + width : Infinity;
+        let minX = left != null ? left : -Infinity;
+        return Math.min(maxX, Math.max(minX, x));
+      };
+
+      /**
+       * Constrain a value to within the vertical components of `this.limits`.
+       *
+       * @param {number} y The value to constrain
+       * @return {number} The constrained value
+       */
+      _limitY(y) {
+        if (!this.limits) { return; }
+        let rect = this.limits;
+        let top = !isNaN(rect.top) ? rect.top : null;
+        let height = !isNaN(rect.height) ? rect.height : 0;
+        let maxY = top != null ? top + height : Infinity;
+        let minY = top != null ? top : -Infinity;
+        return Math.min(maxY, Math.max(minY, y));
+      };
+
+      /**
+       * Calculate the drag limits based on the scale and size of this
+       * transform element relative to the size of the window.
+       *
+       * @param {Object} size The size of this `rula-transform`
+       * @param {number} scale The scale of this `rula-transform`
+       */
+      _computeLimits(height, width, scale) {
+        if (!(width && height && scale)) {
+          return;
+        }
+
+        let containerHeight = 0;
+        let containerWidth = 0;
+        if (this.bounds) {
+          containerHeight = this.bounds.height;
+          containerWidth = this.bounds.width;
+        } else {
+          let rect = this.getBoundingClientRect();
+          if (!rect) {
+            throw Error("No container size found or computable, aborting!");
+          }
+          containerHeight = rect.height;
+          containerWidth = rect.width;
+        }
+
+        return {
+          left: Math.min(0, containerWidth - width * scale),// - offset.x,
+          top: Math.min(0, containerHeight - height * scale),// - offset.y,
+          width: Math.abs(width * scale - containerWidth),
+          height: Math.abs(height * scale - containerHeight)
+        };
+      };
+    }
+
+    window.customElements.define(RulaPanZoom.is, RulaPanZoom);
+  </script>
+</dom-module>

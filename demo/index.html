@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, minimum-scale=1, initial-scale=1, user-scalable=yes">
+
+    <title>rula-pan-zoom demo</title>
+
+    <script src="../../webcomponentsjs/webcomponents-loader.js"></script>
+
+    <link rel="import" href="../../iron-demo-helpers/demo-pages-shared-styles.html">
+    <link rel="import" href="../../iron-demo-helpers/demo-snippet.html">
+    <link rel="import" href="../rula-pan-zoom.html">
+
+    <custom-style>
+      <style is="custom-style" include="demo-pages-shared-styles">
+        rula-pan-zoom {
+          width:100%;
+          height: 500px;
+        }
+      </style>
+    </custom-style>
+  </head>
+  <body>
+    <div class="vertical-section-container centered">
+      <h3>Basic rula-pan-zoom demo</h3>
+      <demo-snippet>
+        <template>
+          <rula-pan-zoom min-scale="0.5" max-scale="5">
+            <div style="pointer-events: none; background-color: goldenrod; width:740px; height: 490px; border: 5px solid red;"></div>
+          </rula-pan-zoom>
+        </template>
+      </demo-snippet>
+    </div>
+  </body>
+</html>
