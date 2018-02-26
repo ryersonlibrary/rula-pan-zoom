@@ -12,6 +12,8 @@
 
       #wrapper {
         transform-origin: 0 0;
+        position: relative;
+        display: inline-block;
       }
     </style>
     <div id="wrapper">
@@ -69,7 +71,7 @@
               width: 0,
               height: 0
             },
-            computed: '_computeLimits(height, width, scale)'
+            //computed: '_computeLimits(height, width, scale)'
           },
 
           /**
@@ -92,8 +94,7 @@
           /**
            * The initial height of the content.
            */
-          height: {
-            observer: '_initializePosition',
+          contentHeight: {
             type: Number,
             value: 0,
           },
@@ -101,8 +102,7 @@
           /**
            * The initial width of the content.
            */
-          width: {
-            observer: '_initializePosition',
+          contentWidth: {
             type: Number,
             value: 0,
           },
@@ -139,42 +139,36 @@
 
         this.addEventListener('wheel', e => this._onWheel(e));
         window.addEventListener('resize', e => this._initializePosition());
+
+        let wrap = this.$.wrapper.getBoundingClientRect();
+        this.contentWidth = wrap.width;
+        this.contentHeight = wrap.height;
+        
+        this._initializePosition();
+        this._computeLimits();
       };
 
-      _initializePosition() {
-        if (!(this.width && this.height)) {
-          return;
-        }
-
-        let width = this.width;
-        let height = this.height;
-
-        let containerHeight = 0;
-        let containerWidth = 0;
-        if (this.bounds) {
-          containerHeight = bounds.height;
-          containerWidth = bounds.width;
-        } else {
-          let rect = this.getBoundingClientRect();
-          if (!rect) {
-            throw Error("No container size found or computable, aborting!");
-          }
-          containerHeight = rect.height;
-          containerWidth = rect.width;
-        }
+      _computeContainerSize() {
+        this.containerWidth = this.containerWidth || 0;
+        this.containerHeight = this.containerHeight || 0;
         
-        this.$.wrapper.style.width = width + 'px';
-        this.$.wrapper.style.height = height + 'px';
-
-        if (containerHeight < containerWidth) {
-          this.scale = this.initS = Math.max(containerWidth / width, containerHeight / height);
-        } else {
-          this.scale = this.initS = Math.min(containerWidth / width, containerHeight / height);
+        let container = this.getBoundingClientRect();
+        if (container) {
+          this.containerWidth = container.width;
+          this.containerHeight = container.height;
         }
+      }
 
-        this.offset = {
-          x: containerWidth / 2 - width * this.scale / 2,
-          y: containerHeight / 2 - height * this.scale / 2
+      _initializePosition() {
+        this._computeContainerSize();
+        
+        //this.$.wrapper.style.width = this.contentWidth + 'px';
+        //this.$.wrapper.style.height = this.contentHeight + 'px';
+
+        if (this.containerHeight < this.containerWidth) {
+          this.scale = this.initS = Math.max(this.containerWidth / this.contentWidth, this.containerHeight / this.contentHeight);
+        } else {
+          this.scale = this.initS = Math.min(this.containerWidth / this.contentWidth, this.containerHeight / this.contentHeight);
         }
 
         this._requestUpdate();
@@ -202,6 +196,7 @@
        * @param {Event}
        */
       _onWheel(e) {
+        e.preventDefault();
         let bounds = this.getBoundingClientRect();
         let x = Math.round(e.clientX - bounds.x);
         let y = Math.round(e.clientY - bounds.y);
@@ -222,6 +217,7 @@
         this.curX += (x / this.scale - x / tempScale) * this.scale;
         this.curY += (y / this.scale - y / tempScale) * this.scale;
 
+        this._computeLimits();
         this._requestUpdate();
       };
 
@@ -237,7 +233,7 @@
 
       /**
        * Handle when an animationFrame is called and update the transform of
-       * this `rula-transform`.
+       * this `rula-pan-zoom`.
        */
       _update() {
         // Combine the scale, x and y values into a 2d transformation matrix.
@@ -297,34 +293,19 @@
       /**
        * Calculate the drag limits based on the scale and size of this
        * transform element relative to the size of the window.
-       *
-       * @param {Object} size The size of this `rula-transform`
-       * @param {number} scale The scale of this `rula-transform`
        */
-      _computeLimits(height, width, scale) {
-        if (!(width && height && scale)) {
+      _computeLimits() {
+        if (!(this.contentWidth && this.contentHeight && this.scale)) {
           return;
         }
 
-        let containerHeight = 0;
-        let containerWidth = 0;
-        if (this.bounds) {
-          containerHeight = this.bounds.height;
-          containerWidth = this.bounds.width;
-        } else {
-          let rect = this.getBoundingClientRect();
-          if (!rect) {
-            throw Error("No container size found or computable, aborting!");
-          }
-          containerHeight = rect.height;
-          containerWidth = rect.width;
-        }
-
-        return {
-          left: Math.min(0, containerWidth - width * scale),// - offset.x,
-          top: Math.min(0, containerHeight - height * scale),// - offset.y,
-          width: Math.abs(width * scale - containerWidth),
-          height: Math.abs(height * scale - containerHeight)
+        this._computeContainerSize()
+        
+        this.limits = {
+          left: Math.min(0, this.containerWidth - this.contentWidth * this.scale),
+          top: Math.min(0, this.containerHeight - this.contentHeight * this.scale),
+          width: Math.abs(this.contentWidth * this.scale - this.containerWidth),
+          height: Math.abs(this.contentHeight * this.scale - this.containerHeight)
         };
       };
     }
